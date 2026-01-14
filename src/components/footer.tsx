@@ -9,7 +9,7 @@ export function Footer() {
                     <a href="#" className="hover:text-eitb-blue transition-colors">Kontaktua</a>
                 </div>
                 <p className="text-xs text-gray-400">
-                    &copy; {new Date().getFullYear()} Euskal Irrati Telebista. Eskubide guztiak erreserbatuta.
+                    &copy; 2026 Suntzu
                 </p>
             </div>
         </footer>

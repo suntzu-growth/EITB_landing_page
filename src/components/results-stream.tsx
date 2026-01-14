@@ -7,23 +7,26 @@ interface ResultsStreamProps {
     isStreaming: boolean;
     results?: Program[];
     directAnswer?: string;
+    text?: string; // New prop for history
 }
 
-export function ResultsStream({ isStreaming, results, directAnswer }: ResultsStreamProps) {
-    const [displayedText, setDisplayedText] = useState("");
-    const [isFinished, setIsFinished] = useState(false);
+export function ResultsStream({ isStreaming, results, directAnswer, text }: ResultsStreamProps) {
+    const [displayedText, setDisplayedText] = useState(text || "");
+    const [isFinished, setIsFinished] = useState(!isStreaming);
 
     // Determine the text to show based on results or direct answer
-    let fullText = `EITB (Euskal Irrati Telebista) es el grupo de comunicación público del País Vasco. Ofrece contenidos de televisión, radio e internet. 
+    let fullText = text || `EITB (Euskal Irrati Telebista) es el grupo de comunicación público del País Vasco. Ofrece contenidos de televisión, radio e internet. 
 
 Aquí tienes la serie "Irabazi Arte", una exitosa ficción juvenil que tiene como ejes principales el fútbol y el empoderamiento femenino.`;
 
-    if (directAnswer) {
-        fullText = directAnswer;
-    } else if (results && results.length > 0) {
-        fullText = `He encontrado ${results.length} coincidencias en la programación de EITB:\n\n`;
-    } else if (results && results.length === 0 && isStreaming) {
-        fullText = `Lo siento, no he encontrado programas que coincidan con tu búsqueda en la programación actual.`;
+    if (!text) {
+        if (directAnswer) {
+            fullText = directAnswer;
+        } else if (results && results.length > 0) {
+            fullText = `He encontrado ${results.length} coincidencias en la programación de EITB:\n\n`;
+        } else if (results && results.length === 0 && isStreaming) {
+            fullText = `Lo siento, no he encontrado programas que coincidan con tu búsqueda en la programación actual.`;
+        }
     }
 
     useEffect(() => {
@@ -41,6 +44,10 @@ Aquí tienes la serie "Irabazi Arte", una exitosa ficción juvenil que tiene com
                 }
             }, 15); // Faster typing for lists
             return () => clearInterval(interval);
+        } else {
+            // If not streaming (e.g. history), show full text immediately
+            setDisplayedText(fullText);
+            setIsFinished(true);
         }
     }, [isStreaming, fullText]);
 

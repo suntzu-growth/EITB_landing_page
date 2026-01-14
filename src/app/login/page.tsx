@@ -66,7 +66,7 @@ export default function LoginPage() {
                 </div>
                 <div className="bg-gray-50 dark:bg-zinc-900 px-8 py-4 border-t border-gray-200 dark:border-gray-700">
                     <p className="text-xs text-center text-gray-500 dark:text-gray-400">
-                        &copy; 2026 EITB. Todos los derechos reservados.
+                        &copy; 2026 Suntzu
                     </p>
                 </div>
             </div>
