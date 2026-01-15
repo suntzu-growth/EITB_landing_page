@@ -27,10 +27,10 @@ export async function GET() {
 
         const data = await response.json();
         return NextResponse.json({ signedUrl: data.signed_url });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error generating signed URL:', error);
         return NextResponse.json(
-            { error: 'Failed to generate signed URL' },
+            { error: 'Failed to generate signed URL', details: error.message },
             { status: 500 }
         );
     }

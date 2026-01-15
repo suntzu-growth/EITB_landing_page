@@ -20,6 +20,7 @@ export function SearchInput({ onSearch }: SearchInputProps) {
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter" && query.trim()) {
             onSearch?.(query);
+            setQuery(""); // Clear input after search
         }
     };
 
@@ -27,6 +28,7 @@ export function SearchInput({ onSearch }: SearchInputProps) {
     const handleSearchClick = () => {
         if (query.trim()) {
             onSearch?.(query);
+            setQuery(""); // Clear input after search
         }
     }
 
