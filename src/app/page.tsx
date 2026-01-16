@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Header } from "@/components/header";
 import { SearchHero } from "@/components/search-hero";
 import { SearchInput } from "@/components/search-input";
@@ -183,7 +183,7 @@ export default function Home() {
       <Header />
 
       <main className="flex-1 flex flex-col relative pt-16">
-        {/* Initial Hero */}
+        {/* Hero */}
         <div className={`transition-all duration-700 ease-in-out flex flex-col items-center w-full ${hasSearched ? "hidden" : "pt-12"}`}>
           <SearchHero />
 
@@ -205,7 +205,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Chat Stream */}
+        {/* Chat */}
         {hasSearched && (
           <div className="container mx-auto px-4 pb-32 flex flex-col space-y-8">
             {messages.map((msg, idx) => (
@@ -214,7 +214,7 @@ export default function Home() {
                   <div className="bg-gray-100 text-gray-800 px-6 py-3 rounded-2xl rounded-tr-sm max-w-[80%] text-lg">
                     {msg.content === 'noticias' ? 'Noticias' :
                       msg.content === 'deportes' ? 'Deportes' :
-                        msg.content === 'television' ? 'Television' :
+                        msg.content === 'television' ? 'Televisión' :
                           msg.content === 'radio' ? 'Radio' :
                             msg.content?.charAt(0).toUpperCase() + msg.content!.slice(1)}
                   </div>
