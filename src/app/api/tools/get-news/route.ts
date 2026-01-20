@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
         const validCategories = ['politica', 'economia', 'sociedad', 'cultura'];
         const selectedCategory = validCategories.includes(category) ? category : '';
 
-        const baseUrl = 'https://orain.eus/es';
+        const baseUrl = 'https://orain.eus';
         const url = selectedCategory ? `${baseUrl}/${selectedCategory}` : baseUrl;
 
         console.log('[News] Fetching from:', url);
