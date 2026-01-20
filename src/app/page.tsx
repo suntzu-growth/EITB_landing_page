@@ -9,205 +9,192 @@ import { TopicSelector } from "@/components/topic-selector";
 import { ResultsStream } from "@/components/results-stream";
 import { Footer } from "@/components/footer";
 
-import { ScheduleParser } from "@/lib/schedule-parser";
-import { scheduleData } from "@/data/schedule-loader";
-import { SIMULATED_ANSWERS } from "@/data/simulated-answers";
-
 interface Message {
   role: 'user' | 'assistant';
   content?: string;
   results?: any[];
   isStreaming?: boolean;
   directAnswer?: string;
+  type?: string;
 }
 
 export default function Home() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isAgentEnabled, setIsAgentEnabled] = useState(false);
+  const [agentStatus, setAgentStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
   const [messages, setMessages] = useState<Message[]>([]);
+  
   const conversationRef = useRef<any>(null);
-  const [accumulatedText, setAccumulatedText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstMessageRef = useRef(true);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Initialize text-only conversation with ElevenLabs
+  // Inicialización del Agente (MODO TEXTO ESTRICTO)
   useEffect(() => {
-    const initConversation = async () => {
+    const initAgent = async () => {
       try {
-        // Dynamically import to avoid SSR issues
+        setAgentStatus('connecting');
         const { TextConversation } = await import('@elevenlabs/client');
 
         const response = await fetch("/api/get-signed-url");
-        if (!response.ok) throw new Error("Failed to get signed URL");
-
         const { signedUrl } = await response.json();
 
         const conversation = await TextConversation.startSession({
           signedUrl,
+          // Definimos las herramientas aquí dentro para el modo texto
+          clientTools: {
+            displayTextResponse: async ({ text }: any) => {
+              updateAssistantMessage(text, false);
+              return { success: true };
+            },
+            displayNewsResults: async ({ news, summary }: any) => {
+              updateAssistantMessage(summary, false, news, 'news');
+              return { success: true };
+            },
+            displaySchedule: async ({ schedule, summary }: any) => {
+              updateAssistantMessage(summary, false, schedule, 'schedule');
+              return { success: true };
+            }
+          },
           onMessage: (message: any) => {
-            console.log('[Agent Message]:', message);
-
-            // Si el mensaje tiene texto, lo acumulamos
-            const text = message.message || message.text || '';
-            if (text && message.role === 'agent') {
-              setAccumulatedText(prev => prev + text);
-            }
-
-            // IMPORTANTE: Detectar cuando el agente termina de enviar contenido
-            // para cerrar el estado de carga (streaming)
-            if (message.type === 'agent_response_end' || message.is_final) {
-              setIsStreaming(false);
-            }
+            handleAgentMessage(message);
           },
           onError: (error: any) => {
             console.error('[Agent Error]:', error);
-            setIsAgentEnabled(false);
+            setAgentStatus('disconnected');
           },
           onDisconnect: () => {
-            console.log('[Agent] Disconnected');
-            setIsAgentEnabled(false);
-          },
+            setAgentStatus('disconnected');
+          }
         });
 
         conversationRef.current = conversation;
-        setIsAgentEnabled(true);
-        console.log('[Agent] Connected (Text-Only)');
+        setAgentStatus('connected');
+        console.log('[Agent] Connected in text-only mode');
 
       } catch (err) {
-        console.error("Failed to initialize text agent:", err);
-        setIsAgentEnabled(false);
+        console.error("Failed to init agent:", err);
+        setAgentStatus('disconnected');
       }
     };
 
-    initConversation();
-
-    return () => {
-      if (conversationRef.current) {
-        conversationRef.current.endSession?.();
-      }
-    };
+    initAgent();
+    return () => conversationRef.current?.endSession();
   }, []);
 
-  // Update messages when accumulated text changes
-  useEffect(() => {
-    if (accumulatedText && isStreaming) {
-      setMessages(prev => {
-        const updated = [...prev];
-        if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
-          updated[updated.length - 1] = {
-            role: 'assistant',
-            content: accumulatedText,
-            isStreaming: true,
-          };
-        }
+  // Helper para actualizar el mensaje del asistente sin duplicar
+  const updateAssistantMessage = (content: string, streaming: boolean, results?: any[], type?: string) => {
+    setMessages(prev => {
+      const updated = [...prev];
+      if (updated.length > 0 && updated[updated.length - 1].role === 'assistant') {
+        updated[updated.length - 1] = {
+          ...updated[updated.length - 1],
+          content: content || updated[updated.length - 1].content,
+          isStreaming: streaming,
+          results: results || updated[updated.length - 1].results,
+          type: type || updated[updated.length - 1].type
+        };
         return updated;
-      });
+      }
+      return updated;
+    });
+    if (!streaming) setIsStreaming(false);
+  };
+
+  const handleAgentMessage = (message: any) => {
+    const text = message.message || message.text || '';
+    if (!text) return;
+
+    const lowerText = text.toLowerCase();
+    const ignoredPhrases = ["irabazi arte", "euskal irrati telebista", "grupo de comunicación público", "estás ahí"];
+
+    // Filtrado de mensaje inicial automático
+    if (isFirstMessageRef.current && ignoredPhrases.some(p => lowerText.includes(p))) {
+      return;
     }
-  }, [accumulatedText, isStreaming]);
+
+    if (text.length > 5) isFirstMessageRef.current = false;
+
+    // Actualizamos el contenido que llega por streaming de texto
+    if (message.role === 'agent' || message.type === 'text') {
+       setMessages(prev => {
+         const updated = [...prev];
+         const last = updated[updated.length - 1];
+         if (last && last.role === 'assistant') {
+            const newContent = (last.content === 'Consultando...' ? '' : last.content) + text;
+            updated[updated.length - 1] = { ...last, content: newContent };
+         }
+         return updated;
+       });
+    }
+
+    if (message.type === 'agent_response_end') {
+      setIsStreaming(false);
+    }
+  };
 
   const handleSearch = async (query?: string, isCategorySelection: boolean = false) => {
-    if (!query) return;
+    if (!query || agentStatus !== 'connected') return;
 
-    // Add user message
-    const userMsg: Message = { role: 'user', content: query };
-    setMessages(prev => [...prev, userMsg]);
+    isFirstMessageRef.current = false; // El usuario ya habló, no ignoramos más
+    setMessages(prev => [...prev, { role: 'user', content: query }]);
     setHasSearched(true);
     setIsStreaming(true);
-    setAccumulatedText("");
 
-    // Add placeholder for response
-    setMessages(prev => [...prev, { role: 'assistant', isStreaming: true }]);
+    // Placeholder
+    setMessages(prev => [...prev, { role: 'assistant', content: 'Consultando...', isStreaming: true }]);
 
-    if (isAgentEnabled && conversationRef.current) {
-      try {
-        const prompt = isCategorySelection
-          ? `Por favor, llévame a la sección de ${query}`
-          : query;
-
-        await conversationRef.current.sendUserMessage(prompt);
-        
-        // ELIMINA EL SETTIMEOUT de 3 segundos. 
-        // La actualización se hará en el useEffect de accumulatedText.
-      } catch (err: any) {
-        console.error("Agent error:", err);
-        setIsStreaming(false);
-      }
-    } else {
-      // Fallback mode (local simulation)
-      setTimeout(() => {
-        let assistantMsg: Message = { role: 'assistant', isStreaming: true };
-
-        if (query && SIMULATED_ANSWERS[query]) {
-          assistantMsg = {
-            role: 'assistant',
-            directAnswer: SIMULATED_ANSWERS[query],
-            isStreaming: false
-          };
-        } else {
-          const parser = new ScheduleParser(scheduleData);
-          const results = parser.search(query || "");
-          assistantMsg = { role: 'assistant', results: results, isStreaming: false };
-        }
-
-        setMessages(prev => {
-          const history = prev.slice(0, -1);
-          return [...history, assistantMsg];
-        });
-        setIsStreaming(false);
-      }, 500);
+    try {
+      const prompt = isCategorySelection ? `Sección: ${query}` : query;
+      await conversationRef.current.sendUserMessage(prompt);
+    } catch (err) {
+      setIsStreaming(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900 selection:bg-eitb-blue/20 selection:text-eitb-blue flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col">
       <Header />
-
       <main className="flex-1 flex flex-col relative pt-16">
-        {/* Hero */}
-        <div className={`transition-all duration-700 ease-in-out flex flex-col items-center w-full ${hasSearched ? "hidden" : "pt-12"}`}>
-          <SearchHero />
-
-          <div className="mb-4 h-6">
-            {isAgentEnabled && (
-              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100 animate-in fade-in">
-                ● Agente Conectado (Texto)
-              </span>
-            )}
+        {/* HERO SECTION */}
+        {!hasSearched && (
+          <div className="flex flex-col items-center w-full pt-12">
+            <SearchHero />
+            <div className="mb-4 h-6">
+              {agentStatus === 'connected' ? (
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100">● Agente de Texto Listo</span>
+              ) : (
+                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100 animate-pulse">○ Conectando...</span>
+              )}
+            </div>
+            <div className="w-full my-8">
+              <QuestionMarquee onQuestionClick={(q) => handleSearch(q)} />
+              <TopicSelector onSelect={(t) => handleSearch(t, true)} className="mt-8" />
+            </div>
+            <div className="w-full px-4 mb-12">
+              <SearchInput onSearch={(q) => handleSearch(q)} />
+            </div>
           </div>
+        )}
 
-          <div className="w-full my-8">
-            <QuestionMarquee onQuestionClick={(q) => handleSearch(q, false)} />
-            <TopicSelector onSelect={(topic) => handleSearch(topic, true)} className="mt-8" />
-          </div>
-
-          <div className="w-full px-4 mb-12">
-            <SearchInput onSearch={(q) => handleSearch(q, false)} />
-          </div>
-        </div>
-
-        {/* Chat */}
+        {/* CHAT SECTION */}
         {hasSearched && (
-          <div className="container mx-auto px-4 pb-32 flex flex-col space-y-8">
+          <div className="container mx-auto px-4 pb-32 flex flex-col space-y-8 pt-8">
             {messages.map((msg, idx) => (
               <div key={idx} className={`w-full ${msg.role === 'user' ? 'flex justify-end' : ''}`}>
                 {msg.role === 'user' ? (
                   <div className="bg-gray-100 text-gray-800 px-6 py-3 rounded-2xl rounded-tr-sm max-w-[80%] text-lg">
-                    {msg.content === 'noticias' ? 'Noticias' :
-                      msg.content === 'deportes' ? 'Deportes' :
-                        msg.content === 'television' ? 'Televisión' :
-                          msg.content === 'radio' ? 'Radio' :
-                            msg.content?.charAt(0).toUpperCase() + msg.content!.slice(1)}
+                    {msg.content}
                   </div>
                 ) : (
                   <ResultsStream
                     isStreaming={!!msg.isStreaming}
                     results={msg.results}
-                    directAnswer={msg.directAnswer || msg.content}
+                    directAnswer={msg.content}
                     text={msg.content}
                   />
                 )}
@@ -217,16 +204,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* Sticky Input */}
+        {/* STICKY INPUT */}
         {hasSearched && (
-          <div className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-gray-100 p-4 pb-8 z-50">
+          <div className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t p-4 pb-8 z-50">
             <div className="container mx-auto max-w-3xl">
-              <SearchInput onSearch={(q) => handleSearch(q, false)} />
+              <SearchInput onSearch={(q) => handleSearch(q)} />
             </div>
           </div>
         )}
       </main>
-
       {!hasSearched && <Footer />}
     </div>
   );
