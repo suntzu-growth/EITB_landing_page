@@ -37,13 +37,27 @@ export async function POST(request: NextRequest) {
       const link = $el.find('a').first().attr('href');
       const fullUrl = link?.startsWith('http') ? link : `${domain}${link}`;
 
-      return {
+      let itemData = {
         title: $el.find('h2, h3').text().trim(),
         url: fullUrl,
         summary: $el.find('p, .sumario').text().trim(),
-        // La imagen se extrae en el ResultsStream o aquí mismo con un fetch adicional
-        image: null 
+        image: null as string | null
       };
+
+      // NUEVO: Entrar en la noticia para sacar la imagen y el resumen detallado
+      try {
+        const detailRes = await fetch(fullUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const detailHtml = await detailRes.text();
+        const $detail = cheerio.load(detailHtml);
+        
+        itemData.image = $detail('meta[property="og:image"]').attr('content') || null;
+        const ogDesc = $detail('meta[property="og:description"]').attr('content');
+        if (ogDesc) itemData.summary = ogDesc; // Prioriza el resumen técnico para el agente
+      } catch (e) {
+        console.error("Error cargando detalles de:", fullUrl);
+      }
+
+      return itemData;
     }));
 
     return NextResponse.json({ 
