@@ -104,17 +104,19 @@ export default function Home() {
             const text = message.message || message.text || '';
             if (!text) return;
             
-            // Filtrar mensajes iniciales con "EITB" o "Hola! Soy tu Asistente"
-            const lowerText = text.toLowerCase();
+            // SOLO filtrar el mensaje de bienvenida inicial EXACTO
+            // y SOLO si es el primer mensaje de la sesión
             if (isFirstMessageRef.current && 
-                (lowerText.includes("eitb") || 
-                 lowerText.includes("hola! soy") ||
-                 lowerText.includes("especializado en"))) {
-              console.log('[Agent] Mensaje inicial filtrado:', text);
+                text === "¡Hola! Soy el asistente de EITB. Por ahora puedo ayudarte con las últimas noticias de actualidad del País Vasco. ¿Qué te gustaría saber?") {
+              console.log('[Agent] Mensaje de bienvenida filtrado');
+              isFirstMessageRef.current = false;
               return;
             }
             
-            isFirstMessageRef.current = false;
+            // Marcar que ya no es el primer mensaje después del primer onMessage
+            if (isFirstMessageRef.current) {
+              isFirstMessageRef.current = false;
+            }
 
             // NO hacer streaming si ya tenemos respuesta de un Client Tool
             if (isToolResponseRef.current) {
@@ -158,7 +160,7 @@ export default function Home() {
     if (!query || agentStatus !== 'connected') return;
 
     // Resetear flags
-    isFirstMessageRef.current = true;
+    isFirstMessageRef.current = false; // ✅ Cambiado de true a false
     isToolResponseRef.current = false;
 
     let processedQuery = query;
