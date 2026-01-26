@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function Header() {
@@ -30,14 +29,9 @@ export function Header() {
                     </div>
                 </a>
 
-                {/* Botones de Acceso/Registro */}
+                {/* Espacio vacío - Botones de Acceso/Registro eliminados */}
                 <div className="flex items-center space-x-4">
-                    <button className="text-sm font-medium text-gray-600 hover:text-eitb-blue transition-colors">
-                        Acceder
-                    </button>
-                    <button className="bg-eitb-blue text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-blue-600 transition-colors shadow-sm">
-                        Registrarse
-                    </button>
+                    {/* Botones removidos para PoC */}
                 </div>
             </div>
         </header>
