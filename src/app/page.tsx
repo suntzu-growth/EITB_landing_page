@@ -160,14 +160,22 @@ export default function Home() {
     if (!query || agentStatus !== 'connected') return;
 
     // Resetear flags
-    isFirstMessageRef.current = false; // ✅ Cambiado de true a false
+    isFirstMessageRef.current = false;
     isToolResponseRef.current = false;
 
     let processedQuery = query;
 
     // Si viene del TopicSelector, es una categoría
     if (isCategorySelection) {
-      processedQuery = `Háblame de las últimas ${query} de la actualidad`;
+      // Mapear categorías a queries apropiadas
+      const categoryQueries: Record<string, string> = {
+        'noticias': 'Háblame de las últimas noticias de la actualidad',
+        'deportes': 'Dame las últimas noticias deportivas',
+        'television': 'Háblame de la programación de televisión',
+        'radio': 'Háblame de la programación de radio'
+      };
+      
+      processedQuery = categoryQueries[query.toLowerCase()] || query;
     }
 
     // Añadir mensaje del usuario
